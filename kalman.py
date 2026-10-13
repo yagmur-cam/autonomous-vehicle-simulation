@@ -30,22 +30,32 @@ def build_H(): #the (2,4) measurement matrix, a constant
     #zy = 0*x + 1*y + 0*vx + 0*vy 
     return np.array([
         [1.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0,0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
     ])
     #last two columns are zero because the rasar doesnt read velocity
 
+#discrete white noise acceleration model
 #we claimed that velocity is constant but we are wrong by this much--real cars accelerate and turn 
 def build_Q(dt, q): #the (4,4) process noise, from dt and a single scalar, how the external world effect it 
+    g_pos = dt**2/2
+    g_vel = dt
+    #Q[i][j] = q · g_i · g_j if elements i and j are driven by the same acceleration, and 0 if they aren’t
     return np.array([
-        [],
-        [],
-        [],
-        [],
+        [q * g_pos**2  , 0.0, q * g_pos * g_vel, 0.0],
+        [0.0, q * g_pos**2  , 0.0, q * g_pos * g_vel],
+        [q * g_pos * g_vel, 0.0, q * g_vel**2 , 0.0],
+        [0.0, q * g_pos * g_vel, 0.0, q * g_vel**2 ],
     ])
 
 #build F, H, and the identity matrix once, before the loop
 #initialise x from the first measurement, and P deliberately large
 def run_filter(measurements, dt, Q, R):
+    assert measurements.ndim == 2, f"measurements must be 2D, got {measurements.ndim}D" #measurements is (200, 2)
+    assert measurements.shape[1] == 2, f"measurements must have 2 columns, got {measurements.shape[1]}" #2 columns 
+    assert Q.shape == (4, 4), f"Q must be 4x4, got {Q.shape}"
+    assert R.shape == (2, 2), f"R must be 2x2, got {R.shape}"
+    #R is öeasurement noise, describes the radar which reporst two numbers 
+    
     F = build_F(dt)
     H = build_H()
     I = np.eye(4) #needed in the update step, 4x4 identity matrix
@@ -84,23 +94,3 @@ def run_filter(measurements, dt, Q, R):
 
 #The only thing in the whole filter that can ever change a velocity is K @ y
 
-print(build_F(0.1))
-print(build_H())
-print(build_F(0.1) @ np.array([0.0, 0.0, 5.0, 0.0]))
-
-meas = np.zeros((10, 2))
-est, cov = run_filter(meas, 0.1, np.eye(4) * 0.1, np.eye(2) * 16.0)
-print(est[:, 0])
-print(cov[:, 0, 0])
-
-
-rng = np.random.default_rng(0)
-n = 200
-truth = np.column_stack([np.arange(n) * 0.5, np.zeros(n)])
-meas = truth + rng.normal(0, 4.0, truth.shape)
-est, cov = run_filter(meas, 0.1, np.eye(4) * 0.1, np.eye(2) * 16.0)
-
-print(np.round(cov[:, 0, 0], 2)[:10])
-print(np.round(est[-1], 3))
-print(np.sqrt(np.mean((est[:, 0] - truth[:, 0])**2)),
-      np.sqrt(np.mean((meas[:, 0] - truth[:, 0])**2)))
