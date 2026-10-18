@@ -1,5 +1,5 @@
 #This file generates the true motion of the vehicle, including an S-curve turn to violate constant velocity.
-#The file also corrups the position reading with: Gaussian noise, dropout gaps and occasional false echoes.
+#The file also corrupts the position reading with: Gaussian noise, dropout gaps and occasional false echoes.
 
 import numpy as np
 #This is the function signature of the simulation generator.
@@ -22,7 +22,7 @@ def simulate(
        #truth: (n_steps, 4) -> [x, y, vx, vy]
        #measurements: (n_steps, 2) -> [zx, zy] #Contains NaNs during dropouts.
 
-     #Setion A-2: Use an isolated Generator object, not np.random.seed()
+     #Using an isolated Generator object, not np.random.seed()
 
      rng = np.random.default_rng(seed) # the isolated generator object is dedicated solely to this simulation.
 
@@ -56,7 +56,7 @@ def simulate(
      for k in range(1, n_steps):
           next_state = F @ truth[k - 1]
 
-          #Section A-1: S-curve turn maneuvers that violate constant-velocity
+          # S-curve turn maneuvers that violate constant-velocity
           if 50 <= k < 100:
                next_state[3] += 0.40 * np.sin((k-50)* 0.1) #steer north
           elif 150 <= k < 190:
@@ -97,5 +97,5 @@ if __name__ == "__main__":
     print("\n--- Measurement Array Sample (With NaN Dropout) ---")
     print(m)
 
-#The above piece of code is a visual check of the arrays, the simulator.py file can de directly run in the terminal.
+#The above piece of code is a visual check of the arrays, the simulator.py file can be directly run in the terminal to visualize the arrays.
 
