@@ -107,10 +107,25 @@ def nees_sweep(q_values, n_seeds=5, dt=0.1, measurement_noise_std=2.0):
         results[i] = np.mean(nees_values)
     return results 
 
-'''
-Tuned, the filter beats the causal baseline by 40% and matches a non-causal smoother
-The optimal q is ~1400× the simulator’s process-noise parameter, because q absorbs unmodelled steering
-RMSE-optimal and consistency-optimal tuning coincide'''
+
+#error growing faster than linearly with gap length
+#velocity uncertainty feeds into position uncertainty and compounds
+def dropout_sweep(gap_lengths, n_seeds=5, dt=0.1, q=31.62, measurement_noise_std=2.0, start=120):
+    Q = build_Q(dt, q=q)
+    R = np.eye(2) * measurement_noise_std**2
+    errors = []
+    for gap in gap_lengths:
+        peaks = []
+        for seed in range(n_seeds):
+            truth, measurement = simulate(dt=dt, seed=seed, dropouts=[(start, start+gap)])
+            est, cov = run_filter(measurement, dt=dt, Q=Q, R=R)
+            #est is (N, 4): rows are timesteps, columns are state elements
+            est_gap = est[start:start+gap, :2]
+            truth_gap = truth[start:start+gap, :2]
+            peaks.append(np.max(np.linalg.norm(est_gap - truth_gap, axis=1))) #the per-step distance, collapisng along the columns 
+        errors.append(np.mean(peaks))
+    return np.array(errors)
+
 
 
 if __name__ == "__main__":
@@ -131,42 +146,18 @@ if __name__ == "__main__":
     best = np.argmin(np.abs(nees_results - 4.0))
     print(f"NEES closest to 4 at q={qs[best]:.4g}  (NEES={nees_results[best]:.3f})")
 
+    gap_lengths = [5, 10, 20, 40, 80]
+    peak_errors = dropout_sweep(gap_lengths=gap_lengths)
+    for gap, err in zip(gap_lengths, peak_errors):
+        print(f"gap={gap:4d} steps ({gap*0.1:.1f}s)   peak error {err:7.2f} m")
+
     np.savez("sweep_results.npz",
          rmse_grid=grid,
          q_values=qs,
          r_std_values=rs,
-         nees_values=nees_results)
+         nees_values=nees_results,
+         gap_lengths=np.array(gap_lengths),
+         peak_errors=peak_errors)
 
 
-'''
-raw               2.010 +/- 0.082
-moving_average_centered  0.891 +/- 0.074
-moving_average_causal  1.563 +/- 0.113
-filter            1.505 +/- 0.120
-best: q=31.62  r_std=2  RMSE=0.933
 
-q=31.62 sits in the middle of the range with larger values either side, and r_std=2.0 is interior 
-
-
-raw radar	2.010	
-filter, untuned	1.505	
-causal moving average	1.563	fair baseline
-filter, tuned (q=31.6)	0.933	
-centred moving average	0.891	non-causal — sees the future
-
-The tuned filter beats the fair baseline by 40% and the raw radar by 54%
-the optimal q is 1400× larger than the simulator’s process-noise parameter
-q isn’t measuring the random kicks; it’s measuring how wrong the constant-velocity model is, 
-and the steering dominates that by three orders of magnitude
-'''
-
-
-'''
-An untuned filter (q = 1.0) was outperformed by a simple moving average; 
-sweeping q revealed an optimum near the simulator’s true process noise, 
-after which the filter beat both baselines by X%.
-
-Our first baseline, a centred moving average, appeared to beat the filter — but it is non-causal, using measurements the filter has not yet received. 
-Against a causal baseline the filter wins by X%. 
-Separately, the optimal q was found to be far larger than the simulator’s process-noise parameter, because q must also absorb the vehicle’s unmodelled steering.
-'''
