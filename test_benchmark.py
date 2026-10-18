@@ -12,6 +12,7 @@ def test_rmse_known_value():
     true = [[0.0, 0.0], [0.0, 0.0]] #squared differences are 9, 16, 0, 0, mean of those four is 6.25
     assert rmse(np.array(estimated), np.array(true)) == pytest.approx(2.5)
 
+
 def test_const_moving_avg():
     const_array = np.full((20, 2), 7.0) #twenty rows of [7.0, 7.0]
     output = moving_average(const_array, 5)
