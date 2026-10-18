@@ -97,5 +97,5 @@ if __name__ == "__main__":
     print("\n--- Measurement Array Sample (With NaN Dropout) ---")
     print(m)
 
-#The above piece of code is a visual check of the arrays, the simulator.py file can de directlt run in the terminal.
+#The above piece of code is a visual check of the arrays, the simulator.py file can de directly run in the terminal.
 
