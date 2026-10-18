@@ -48,8 +48,8 @@ def simulate(
      g_vel = dt
      Q = np.array([
           [q * g_pos**2, 0.0,      q * g_pos * g_vel, 0.0],
-          [0.0,     q * g_pos**2, 0.0,       1 * g_pos * g_vel],
-          [q * g_pos * g_vel, 0.0,     q * g_pos**2,   0.0],
+          [0.0,     q * g_pos**2, 0.0,       q * g_pos * g_vel],
+          [q * g_pos * g_vel, 0.0,     q * g_vel**2,   0.0],
           [0.0,     q * g_pos * g_vel, 0.0,     q * g_vel **2]
      ])
       
@@ -63,7 +63,8 @@ def simulate(
                next_state[3] -= 0.45 * np.cos ((k-150) * 0.1) #steer south
 
           # Add random acceleration kick:
-          kick = rng.multivariate_normal(np.zeros(4), Q)
+     
+          kick = rng.multivariate_normal(np.zeros(4), Q, method = "svd")
           truth[k] = next_state + kick
 
      # Measurement Matrix H - the radar only sees [x, y]
