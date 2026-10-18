@@ -5,13 +5,14 @@
 #the sweeps and monte carlo need the simulation
 
 import numpy as np 
-from kalman import run_filter
+from kalman import run_filter, build_Q
 from simulator import simulate
 
 
 def rmse(estimated, true):
     diff = estimated - true
     return np.sqrt(np.mean(diff**2))
+
 
 def moving_average(measurements, window): #for each point, the avg of itself and its neighbours
     half_window = window // 2
@@ -35,11 +36,29 @@ def nees(estimates, covariances, truth): #measuring the error in units of the fi
     return np.mean(errors[10:]) #the early NEES values are near zero and drag your average down for reasons that have nothing to do with calibration.
 
 
-def monte_carlo():
-    pass
+#returns six numbers as three pairs, one pair per method 
+#for each raw, moving_avg and filter --> the mean RNMSE across all seeds which is the typical performance
+#and the std deviation of that RMSE across seeds which is how much it varies run to run 
+def monte_carlo(n_seeds=30, dt=0.1, q=1.0, measurement_noise_std=2.0, window=5):
+    raw_values = []
+    moving_avgs = []
+    filter_truths = []
+    Q = build_Q(dt, q)
+    R = np.eye(2) * measurement_noise_std**2 #holds variances
+    for seed in range(n_seeds):
+        truth, measurements = simulate(dt=dt, seed=seed)
+        result = baseline_comparison(truth, measurements, dt, Q, R, window)
+        raw_values.append(result["raw"])
+        moving_avgs.append(result["moving_average"])
+        filter_truths.append(result["filter"])
+    return {
+        "raw": (np.mean(raw_values), np.std(raw_values)), 
+        "moving_average": (np.mean(moving_avgs), np.std(moving_avgs)), 
+        "filter": (np.mean(filter_truths), np.std(filter_truths))
+    }
 
 
-def baseline_comparison(truth, measurements, dt, Q, R, window=5):
+def baseline_comparison(truth, measurements, dt, Q, R, window=5): #returns a dict
     #truth is (N, 4), position and velocity 
     #measurements is (N, 2), position only 
     est, cov = run_filter(measurements, dt, Q, R)
@@ -48,3 +67,9 @@ def baseline_comparison(truth, measurements, dt, Q, R, window=5):
     moving_avg_truth = rmse(moving_average(measurements, window), truth[:, :2])
     filter_truth = rmse(est[:, :2], truth[:, :2])
     return {"raw": measurement_truth, "moving_average": moving_avg_truth, "filter": filter_truth}
+
+
+if __name__ == "__main__":
+    results = monte_carlo(n_seeds=5)
+    for name, (mean, std) in results.items():
+        print(f"{name:16} {mean:6.3f} +/- {std:5.3f}")
