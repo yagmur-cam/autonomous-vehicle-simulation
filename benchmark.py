@@ -90,6 +90,24 @@ def q_r_sweep(q_values, r_std_values, n_seeds=5):
     return grid, q_values, r_std_values
 
 
+#NEES asks, does the filter's P honestly describe its error? 
+#the q that tracks best might not be the q that is calibrated 
+#the RMSE-optimal tuning is not the consistency-optimal tuning,
+#the simulator’s reality doesn’t change while the filter’s beliefs do
+def nees_sweep(q_values, n_seeds=5, dt=0.1, measurement_noise_std=2.0):
+    results = np.zeros(len(q_values))
+    for i, q in enumerate(q_values):
+        nees_values = []
+        Q = build_Q(dt, q=q)
+        R = np.eye(2) * measurement_noise_std**2 #measurement covariance
+        for seed in range(n_seeds):
+            truth, measurement = simulate(dt=dt, seed=seed)
+            est, cov = run_filter(measurements=measurement, dt=dt, Q=Q, R=R)
+            nees_values.append(nees(est, cov, truth))
+        results[i] = np.mean(nees_values)
+    return results 
+
+
 if __name__ == "__main__":
     results = monte_carlo(n_seeds=30)
     for name, (mean, std) in results.items():
@@ -100,6 +118,13 @@ if __name__ == "__main__":
     grid, _, _ = q_r_sweep(qs, rs, n_seeds=3)
     i, j = np.unravel_index(np.argmin(grid), grid.shape)
     print(f"best: q={qs[i]:.4g}  r_std={rs[j]:.4g}  RMSE={grid[i, j]:.3f}")
+
+    nees_results = nees_sweep(qs, n_seeds=3)
+    for q, val in zip(qs, nees_results):
+        print(f"q={q:9.4g}   NEES={val:8.3f}")
+
+    best = np.argmin(np.abs(nees_results - 4.0))
+    print(f"NEES closest to 4 at q={qs[best]:.4g}  (NEES={nees_results[best]:.3f})")
 
 
 '''
@@ -132,4 +157,5 @@ after which the filter beat both baselines by X%.
 
 Our first baseline, a centred moving average, appeared to beat the filter — but it is non-causal, using measurements the filter has not yet received. 
 Against a causal baseline the filter wins by X%. 
-Separately, the optimal q was found to be far larger than the simulator’s process-noise parameter, because q must also absorb the vehicle’s unmodelled steering.'''
+Separately, the optimal q was found to be far larger than the simulator’s process-noise parameter, because q must also absorb the vehicle’s unmodelled steering.
+'''
