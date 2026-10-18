@@ -14,14 +14,18 @@ def rmse(estimated, true):
     return np.sqrt(np.mean(diff**2))
 
 
-def moving_average(measurements, window): #for each point, the avg of itself and its neighbours
+def moving_average(measurements, window, causal=True): #for each point, the avg of itself and its neighbours
     half_window = window // 2
     #start — i - half, but never below 0.
     #end — i + half + 1, but never past the end of the array
     avgs = []
     for i in range(len(measurements)): #for row i, you want the mean of rows i-k through i+k
-        start = max(0, i-half_window)
-        end = min(len(measurements), i+half_window+1)
+        if causal:
+            start = max(0, i-window+1)
+            end = i+1 #the current point and the window-1 before it, doesn't look ahead
+        else:
+            start = max(0, i-half_window)
+            end = min(len(measurements), i+half_window+1)
         block = measurements[start:end]
         avgs.append(np.mean(block, axis=0)) #giving one [x, y] pair
     return np.array(avgs)
@@ -39,9 +43,10 @@ def nees(estimates, covariances, truth): #measuring the error in units of the fi
 #returns six numbers as three pairs, one pair per method 
 #for each raw, moving_avg and filter --> the mean RNMSE across all seeds which is the typical performance
 #and the std deviation of that RMSE across seeds which is how much it varies run to run 
-def monte_carlo(n_seeds=30, dt=0.1, q=1.0, measurement_noise_std=2.0, window=5):
+def monte_carlo(n_seeds=30, dt=0.1, q=31.62, measurement_noise_std=2.0, window=5):
     raw_values = []
-    moving_avgs = []
+    moving_avgs_centered = []
+    moving_avgs_causal = []
     filter_truths = []
     Q = build_Q(dt, q)
     R = np.eye(2) * measurement_noise_std**2 #holds variances
@@ -49,11 +54,13 @@ def monte_carlo(n_seeds=30, dt=0.1, q=1.0, measurement_noise_std=2.0, window=5):
         truth, measurements = simulate(dt=dt, seed=seed)
         result = baseline_comparison(truth, measurements, dt, Q, R, window)
         raw_values.append(result["raw"])
-        moving_avgs.append(result["moving_average"])
+        moving_avgs_centered.append(result["moving_average_centered"])
+        moving_avgs_causal.append(result["moving_average_causal"])
         filter_truths.append(result["filter"])
     return {
         "raw": (np.mean(raw_values), np.std(raw_values)), 
-        "moving_average": (np.mean(moving_avgs), np.std(moving_avgs)), 
+        "moving_average_centered": (np.mean(moving_avgs_centered), np.std(moving_avgs_centered)), 
+        "moving_average_causal": (np.mean(moving_avgs_causal), np.std(moving_avgs_causal)),
         "filter": (np.mean(filter_truths), np.std(filter_truths))
     }
 
@@ -64,12 +71,65 @@ def baseline_comparison(truth, measurements, dt, Q, R, window=5): #returns a dic
     est, cov = run_filter(measurements, dt, Q, R)
     #raw measurements vs truth, moving average vs truth, filter vs truth
     measurement_truth = rmse(measurements, truth[:, :2])
-    moving_avg_truth = rmse(moving_average(measurements, window), truth[:, :2])
+    moving_avg_centered_truth = rmse(moving_average(measurements, window, causal=False), truth[:, :2])
+    moving_avg_causal_truth = rmse(moving_average(measurements, window, causal=True), truth[:, :2])
     filter_truth = rmse(est[:, :2], truth[:, :2])
-    return {"raw": measurement_truth, "moving_average": moving_avg_truth, "filter": filter_truth}
+    return {"raw": measurement_truth, "moving_average_centered": moving_avg_centered_truth, 
+            "moving_average_causal": moving_avg_causal_truth, "filter": filter_truth}
+
+
+#the Q-R sweep: simulator's real noise is fixed, only the filter's beliefs change
+#ask --> what happens when i tell the filter the wrong thing?
+#true values are q = 0.15² = 0.0225 and r = 2.0² = 4.0
+#simulate has a fixed measurement_noise_std at 2.0, while the filter's R varies 
+def q_r_sweep(q_values, r_std_values, n_seeds=5):
+    grid = np.zeros((len(q_values), len(r_std_values)))
+    for i, q in enumerate(q_values):
+        for j, r_std in enumerate(r_std_values):
+            grid[i][j] = monte_carlo(n_seeds=n_seeds, dt=0.1, q=q, measurement_noise_std=r_std, window=5)["filter"][0] #the mean filter RMSE 
+    return grid, q_values, r_std_values
 
 
 if __name__ == "__main__":
-    results = monte_carlo(n_seeds=5)
+    results = monte_carlo(n_seeds=30)
     for name, (mean, std) in results.items():
         print(f"{name:16} {mean:6.3f} +/- {std:5.3f}")
+
+    qs = np.logspace(-2, 3, 11) #0.01 up to 1000
+    rs = np.array([0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0])
+    grid, _, _ = q_r_sweep(qs, rs, n_seeds=3)
+    i, j = np.unravel_index(np.argmin(grid), grid.shape)
+    print(f"best: q={qs[i]:.4g}  r_std={rs[j]:.4g}  RMSE={grid[i, j]:.3f}")
+
+
+'''
+raw               2.010 +/- 0.082
+moving_average_centered  0.891 +/- 0.074
+moving_average_causal  1.563 +/- 0.113
+filter            1.505 +/- 0.120
+best: q=31.62  r_std=2  RMSE=0.933
+
+q=31.62 sits in the middle of the range with larger values either side, and r_std=2.0 is interior 
+
+
+raw radar	2.010	
+filter, untuned	1.505	
+causal moving average	1.563	fair baseline
+filter, tuned (q=31.6)	0.933	
+centred moving average	0.891	non-causal — sees the future
+
+The tuned filter beats the fair baseline by 40% and the raw radar by 54%
+the optimal q is 1400× larger than the simulator’s process-noise parameter
+q isn’t measuring the random kicks; it’s measuring how wrong the constant-velocity model is, 
+and the steering dominates that by three orders of magnitude
+'''
+
+
+'''
+An untuned filter (q = 1.0) was outperformed by a simple moving average; 
+sweeping q revealed an optimum near the simulator’s true process noise, 
+after which the filter beat both baselines by X%.
+
+Our first baseline, a centred moving average, appeared to beat the filter — but it is non-causal, using measurements the filter has not yet received. 
+Against a causal baseline the filter wins by X%. 
+Separately, the optimal q was found to be far larger than the simulator’s process-noise parameter, because q must also absorb the vehicle’s unmodelled steering.'''
