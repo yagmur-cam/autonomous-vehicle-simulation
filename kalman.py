@@ -32,7 +32,7 @@ def build_H(): #the (2,4) measurement matrix, a constant
         [1.0, 0.0, 0.0, 0.0],
         [0.0, 1.0, 0.0, 0.0],
     ])
-    #last two columns are zero because the rasar doesnt read velocity
+    #last two columns are zero because the radar doesnt read velocity
 
 #discrete white noise acceleration model
 #we claimed that velocity is constant but we are wrong by this much--real cars accelerate and turn 
@@ -41,20 +41,19 @@ def build_Q(dt, q): #the (4,4) process noise, from dt and a single scalar, how t
     g_vel = dt
     #Q[i][j] = q · g_i · g_j if elements i and j are driven by the same acceleration, and 0 if they aren’t
     return np.array([
-        [q * g_pos**2  , 0.0, q * g_pos * g_vel, 0.0],
-        [0.0, q * g_pos**2  , 0.0, q * g_pos * g_vel],
-        [q * g_pos * g_vel, 0.0, q * g_vel**2 , 0.0],
-        [0.0, q * g_pos * g_vel, 0.0, q * g_vel**2 ],
+        [q * g_pos**2, 0.0, q * g_pos * g_vel, 0.0],
+        [0.0, q * g_pos**2, 0.0, q * g_pos * g_vel],
+        [q * g_pos * g_vel, 0.0, q * g_vel**2, 0.0],
+        [0.0, q * g_pos * g_vel, 0.0, q * g_vel**2],
     ])
 
-#build F, H, and the identity matrix once, before the loop
 #initialise x from the first measurement, and P deliberately large
 def run_filter(measurements, dt, Q, R):
     assert measurements.ndim == 2, f"measurements must be 2D, got {measurements.ndim}D" #measurements is (200, 2)
     assert measurements.shape[1] == 2, f"measurements must have 2 columns, got {measurements.shape[1]}" #2 columns 
     assert Q.shape == (4, 4), f"Q must be 4x4, got {Q.shape}"
     assert R.shape == (2, 2), f"R must be 2x2, got {R.shape}"
-    #R is öeasurement noise, describes the radar which reporst two numbers 
+    #R is measurement noise, describes the radar which reporst two numbers 
     
     F = build_F(dt)
     H = build_H()
@@ -62,7 +61,7 @@ def run_filter(measurements, dt, Q, R):
     
     #x and P are the filters memory
     #F, H, Q, R never change; x and P are the whole state of the machine
-    #measurements is shape (N, 2), so measurements[0] is the first row — a 2-element array [zx, zy]
+    #measurements is shape (N, 2), so measurements[0] is the first row, a 2-element array [zx, zy]
     x = np.array([measurements[0][0], measurements[0][1], 0.0, 0.0]) #filters current best guess, [x, y, vx, vy], gets overwritten every timestep 
     #initialized to big numbers, meaning we have no idea, the numbers will collapse as the updates arrive 
     P = np.diag([100.0, 100.0, 100.0, 100.0]) #how wrong it thinks that guess might be
@@ -70,7 +69,7 @@ def run_filter(measurements, dt, Q, R):
     
     estimates = []
     covariances = []
-    #predict--maybe update--record
+    #predict -- maybe update -- record
     for row in measurements:
         #always predict, check whether this row is NaN, if its not then update 
         #append a copy of x and P to the two lists 

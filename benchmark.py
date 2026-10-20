@@ -1,8 +1,6 @@
 #RMSE filter vs raw, the Q/R sweep, Monte Carlo over many seeds, and NEES
 #runs under various conditions, testing how well the filter works and where it breaks 
-#4 experiments: baseline comparison, Q/R sweep, dropout sweep, Monte Carlo over seeds
-#NEES: normalised estimation error squared, meaning "is the filter honest about its own uncetainty"
-#the sweeps and monte carlo need the simulation
+
 
 import numpy as np 
 from kalman import run_filter, build_Q
@@ -16,7 +14,7 @@ def rmse(estimated, true):
 
 def moving_average(measurements, window, causal=True): #for each point, the avg of itself and its neighbours
     half_window = window // 2
-    #start — i - half, but never below 0.
+    #start — i - half, but never below 0
     #end — i + half + 1, but never past the end of the array
     avgs = []
     for i in range(len(measurements)): #for row i, you want the mean of rows i-k through i+k
@@ -31,6 +29,7 @@ def moving_average(measurements, window, causal=True): #for each point, the avg 
     return np.array(avgs)
 
 
+#normalised estimation error squared, meaning "is the filter honest about its own uncetainty"
 #For a 4-dimensional state, a well-calibrated filter averages about 4
 def nees(estimates, covariances, truth): #measuring the error in units of the filter’s own claimed uncertainty
     errors = []

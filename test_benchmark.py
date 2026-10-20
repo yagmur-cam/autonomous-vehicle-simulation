@@ -25,5 +25,7 @@ def test_moving_avg_shape(): #output shape equals input shape
     assert output.shape == data.shape
 
 
+def test_
+
 
 
