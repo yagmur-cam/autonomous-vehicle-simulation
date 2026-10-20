@@ -36,11 +36,11 @@ def nees(estimates, covariances, truth): #measuring the error in units of the fi
     for estimate, P, true_state in zip(estimates, covariances, truth):
         e = estimate - true_state
         errors.append(e.T @ np.linalg.inv(P) @ e)
-    return np.mean(errors[10:]) #the early NEES values are near zero and drag your average down for reasons that have nothing to do with calibration.
+    return np.mean(errors[10:]) #the early NEES values are near zero and drag your average down for reasons that have nothing to do with calibration
 
 
 #returns six numbers as three pairs, one pair per method 
-#for each raw, moving_avg and filter --> the mean RNMSE across all seeds which is the typical performance
+#for each raw, moving_avg and filter --> the mean RMSE across all seeds which is the typical performance
 #and the std deviation of that RMSE across seeds which is how much it varies run to run 
 def monte_carlo(n_seeds=30, dt=0.1, q=31.62, measurement_noise_std=2.0, window=5):
     raw_values = []
@@ -91,8 +91,7 @@ def q_r_sweep(q_values, r_std_values, n_seeds=5):
 
 #NEES asks, does the filter's P honestly describe its error? 
 #the q that tracks best might not be the q that is calibrated 
-#the RMSE-optimal tuning is not the consistency-optimal tuning,
-#the simulator’s reality doesn’t change while the filter’s beliefs do
+#the RMSE-optimal tuning might not be the consistency-optimal tuning
 def nees_sweep(q_values, n_seeds=5, dt=0.1, measurement_noise_std=2.0):
     results = np.zeros(len(q_values))
     for i, q in enumerate(q_values):
@@ -121,35 +120,51 @@ def dropout_sweep(gap_lengths, n_seeds=5, dt=0.1, q=31.62, measurement_noise_std
             #est is (N, 4): rows are timesteps, columns are state elements
             est_gap = est[start:start+gap, :2]
             truth_gap = truth[start:start+gap, :2]
-            peaks.append(np.max(np.linalg.norm(est_gap - truth_gap, axis=1))) #the per-step distance, collapisng along the columns 
+            peaks.append(np.max(np.linalg.norm(est_gap - truth_gap, axis=1))) #the per-step distance, collapsing along the columns 
         errors.append(np.mean(peaks))
     return np.array(errors)
 
 
 
 if __name__ == "__main__":
+    # --- Experiment 1: does the filter beat the simple alternatives? ---
+    # 30 seeds, tuned q, prints mean RMSE +/- std for each method
     results = monte_carlo(n_seeds=30)
     for name, (mean, std) in results.items():
         print(f"{name:16} {mean:6.3f} +/- {std:5.3f}")
 
+
+    # --- Experiment 2: how should Q and R be tuned? ---
+    # log spacing because these parameters span orders of magnitude
     qs = np.logspace(-2, 3, 11) #0.01 up to 1000
-    rs = np.array([0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0])
+    rs = np.array([0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0]) #measurement noise std
     grid, _, _ = q_r_sweep(qs, rs, n_seeds=3)
+    # argmin gives a flat index; unravel_index turns it back into (row, col)
     i, j = np.unravel_index(np.argmin(grid), grid.shape)
     print(f"best: q={qs[i]:.4g}  r_std={rs[j]:.4g}  RMSE={grid[i, j]:.3f}")
 
+
+    # --- Experiment 3: is the filter honest about its own uncertainty? ---
+    # same q values as above so the two sweeps are directly comparable
     nees_results = nees_sweep(qs, n_seeds=3)
     for q, val in zip(qs, nees_results):
         print(f"q={q:9.4g}   NEES={val:8.3f}")
 
+
+    # a 4D state should give NEES near 4; far above means overconfident
     best = np.argmin(np.abs(nees_results - 4.0))
     print(f"NEES closest to 4 at q={qs[best]:.4g}  (NEES={nees_results[best]:.3f})")
 
+
+    # --- Experiment 4: how good does it survive a radar blackout? ---
+    # peak position error during gaps of increasing length
     gap_lengths = [5, 10, 20, 40, 80]
     peak_errors = dropout_sweep(gap_lengths=gap_lengths)
     for gap, err in zip(gap_lengths, peak_errors):
         print(f"gap={gap:4d} steps ({gap*0.1:.1f}s)   peak error {err:7.2f} m")
 
+
+    # save every array so visualize.py can plot without re-running the sweeps
     np.savez("sweep_results.npz",
          rmse_grid=grid,
          q_values=qs,
