@@ -1,6 +1,7 @@
 import numpy as np 
 import pytest 
-from benchmark import rmse, moving_average 
+from benchmark import rmse, moving_average, nees 
+
 
 def test_rmse_zero():
     a = np.array([4.0, 5.0])
@@ -25,7 +26,30 @@ def test_moving_avg_shape(): #output shape equals input shape
     assert output.shape == data.shape
 
 
-def test_
+def test_casual_does_not_look_ahead():
+    step = np.zeros((20, 2))
+    step[10:] = 100.0
+    avgs_causal = moving_average(measurements=step, window=5, causal=True)
+    avgs_centered = moving_average(measurements=step, window=5, causal=False)
+    assert np.allclose(avgs_causal[9], 0.0)
+    assert not np.allclose(avgs_centered[9], 0.0)
+
+
+def test_nees_zero_when_perfect():
+    estimates = np.zeros((50, 4))
+    truth = np.zeros((50, 4))
+    covariances = np.tile(np.eye(4), (50, 1, 1)) #stacks 50 copies of the identity into a (50, 4, 4)
+    cov = nees(estimates, covariances, truth)
+    assert cov == pytest.approx(0.0)
+
+
+def test_nees_scales_with_P(): #tests the formula 
+    estimates = np.ones((50, 4)) #ones, not zeros so that there is actual error
+    truth = np.zeros((50, 4))
+    covariances = np.tile(np.eye(4), (50, 1, 1))
+    nees1 = nees(estimates, covariances, truth)
+    nees4 = nees(estimates, covariances*4, truth)
+    assert nees4 == pytest.approx(nees1 / 4)
 
 
 
