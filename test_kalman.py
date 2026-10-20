@@ -1,6 +1,7 @@
-import pytest 
 import numpy as np 
+import pytest 
 from kalman import build_F, build_Q, build_H, run_filter
+
 
 def test_F_shape():
     assert build_F(0.1).shape == (4,4)
@@ -50,5 +51,6 @@ def test_large_R_ignores_measurements():
     gap_tight = np.mean(np.abs(est_tight[:, :2] - measurements)) #just the position columns from est_tight
     gap_loose = np.mean(np.abs(est_loose[:, :2] - measurements))
     assert gap_tight < gap_loose
-#with R at 1e-6 the filter is being told the radar is essentially perfect, so K goes large and the estimate snaps onto every measurement. 
-#With R at 1e6 it’s told the radar is garbage, so K goes near zero and the filter coasts on its own prediction, drifting away from the dots
+    
+    #with R at 1e-6 the filter is being told the radar is essentially perfect, so K goes large and the estimate snaps onto every measurement. 
+    #With R at 1e6 it’s told the radar is garbage, so K goes near zero and the filter coasts on its own prediction, drifting away from the dots
