@@ -9,7 +9,8 @@ from simulator import simulate
 
 def rmse(estimated, true):
     diff = estimated - true
-    return np.sqrt(np.mean(diff**2))
+    distances = np.linalg.norm(diff, axis=1) #one 2D distance per timestep
+    return np.sqrt(np.mean(distances**2))
 
 
 def moving_average(measurements, window, causal=True): #for each point, the avg of itself and its neighbours
