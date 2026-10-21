@@ -103,10 +103,10 @@ def plot_static_study(
 
         if dropouts:
               for s, e in dropouts:
-                    ax_err.axvspan(s * dt, e * dt, colour="orange", alpha=0.2, label="Sensor Dropout")
+                    ax_err.axvspan(s * dt, e * dt, color="orange", alpha=0.2, label="Sensor Dropout")
         
         ax_err.set_xlabel("Time (s)")
-        ax_err.set_ylabel("Error noem (m)")
+        ax_err.set_ylabel("Error norm (m)")
         ax_err.grid(True, linestyle= ":", alpha=0.6)
         ax_err.legend(loc="upper right")
 
