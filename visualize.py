@@ -140,10 +140,15 @@ def create_animation(
 ):
      #render the moving-camera tracking reel with the breathing 2-sigma covariance ellipse as a GIF for the README file.
      fig, ax = plt.subplots(figsize=(8, 6))
+     ax.set_aspect("equal")
      ax.set_facecolor("#12121a")
      fig.patch.set_facecolor("#12121a")
 
-     line_true, = ax.plot([], [], color="#7f8c8d", lw=1.5, alpha=0.6, label="Ground Truth")
+     ax.set_title("Kalman Tracking with 2σ Uncertainty", color="white", fontweight="bold")
+     ax.set_xlabel("X Position (m)", color="white")
+     ax.set_ylabel("Y Position (m)", color="white")
+
+     line_true, = ax.plot([], [], color="#dfe6e9", lw=2.0, alpha=0.85, label="Ground Truth")
      line_est, = ax.plot([], [], color="#00d2d3", lw=2.0, label="Kalman Estimate")
      scat_meas = ax.scatter([], [], color="#ff6b6b", s=20, alpha=0.6, label="Radar Hits")
     
@@ -191,7 +196,7 @@ def create_animation(
           # Moving camera centered on the vehicle:
           cx, cy = truth[frame, :2]
           ax.set_xlim(cx - 30, cx + 30)
-          ax.set_ylim(cy - 25, cy +25)
+          ax.set_ylim(cy - 22.5, cy + 22.5)
           return line_true, line_est, scat_meas, car_dot, est_dot, ellipse_patch
      
      anim = FuncAnimation(fig, update, frames=len(truth), init_func=init, blit=False)

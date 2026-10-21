@@ -4,14 +4,14 @@ from benchmark import rmse, moving_average, nees
 
 
 def test_rmse_zero():
-    a = np.array([4.0, 5.0])
+    a = np.zeros((10, 2))
     assert np.isclose(rmse(a, a), 0.0)
 
 
 def test_rmse_known_value():
-    estimated = [[3.0, 4.0], [0.0, 0.0]]
+    estimated = [[3.0, 4.0], [3.0, 4.0]]
     true = [[0.0, 0.0], [0.0, 0.0]] #squared differences are 9, 16, 0, 0, mean of those four is 6.25
-    assert rmse(np.array(estimated), np.array(true)) == pytest.approx(2.5)
+    assert rmse(np.array(estimated), np.array(true)) == pytest.approx(5.0)
 
 
 def test_const_moving_avg():
