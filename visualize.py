@@ -1,9 +1,9 @@
-#Scientific plotting, error fiagnostics, 2-sigma covariance ellipses, and animation.
+#Scientific plotting, error diagnostics, 2-sigma covariance ellipses, and animation.
 
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse #to draw the 2D confidence regions (uncertainty ellipses) directly onto the trejectory plot. Orientation angle is derived from the Kalman covariance matrix.
+from matplotlib.patches import Ellipse #to draw the 2D confidence regions (uncertainty ellipses) directly onto the trajectory plot. Orientation angle is derived from the Kalman covariance matrix.
 from matplotlib.gridspec import GridSpec
 from matplotlib.animation import FuncAnimation, PillowWriter
 #FuncAnimation: drives the frame-by-frame loop for dynamic vehicle simulation, updating vehicle position, the trailing trajectory line, radar pings, the pulsing covariance ellipses at each step.
@@ -49,7 +49,7 @@ def plot_static_study(
         filename: str = "figures/kalman_study.png"
 ):
         # Producing the 3-panel static study:
-        # 1. Trajectory - truth, noisy dots, filter line, covaraince ellipse
+        # 1. Trajectory - truth, noisy dots, filter line, covariance ellipse
         # 2. Error against time - raw error vs filter error with shaded dropouts
         # 3. Uncertainty evolution over time: Trace(P_pos).
 

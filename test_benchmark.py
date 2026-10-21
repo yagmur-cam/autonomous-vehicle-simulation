@@ -10,7 +10,7 @@ def test_rmse_zero():
 
 def test_rmse_known_value():
     estimated = [[3.0, 4.0], [3.0, 4.0]]
-    true = [[0.0, 0.0], [0.0, 0.0]] #squared differences are 9, 16, 0, 0, mean of those four is 6.25
+    true = [[0.0, 0.0], [0.0, 0.0]] 
     assert rmse(np.array(estimated), np.array(true)) == pytest.approx(5.0)
 
 
@@ -26,7 +26,7 @@ def test_moving_avg_shape(): #output shape equals input shape
     assert output.shape == data.shape
 
 
-def test_casual_does_not_look_ahead():
+def test_causal_does_not_look_ahead():
     step = np.zeros((20, 2))
     step[10:] = 100.0
     avgs_causal = moving_average(measurements=step, window=5, causal=True)
@@ -39,8 +39,8 @@ def test_nees_zero_when_perfect():
     estimates = np.zeros((50, 4))
     truth = np.zeros((50, 4))
     covariances = np.tile(np.eye(4), (50, 1, 1)) #stacks 50 copies of the identity into a (50, 4, 4)
-    cov = nees(estimates, covariances, truth)
-    assert cov == pytest.approx(0.0)
+    nees_value = nees(estimates, covariances, truth)
+    assert nees_value == pytest.approx(0.0)
 
 
 def test_nees_scales_with_P(): #tests the formula 
