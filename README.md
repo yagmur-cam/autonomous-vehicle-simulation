@@ -3,8 +3,9 @@
 Estimating the position and velocity of a manoeuvring vehicle from noisy,
 position-only radar, and measuring how well it actually works.
 
-> [animation GIF here — visual hook before any text]
-> headline result in one sentence, with the number
+<img src=figures/tracking.gif width="500">
+
+headline result in one sentence, with the number
 
 ## Overview                                          [both — write last]
 What the problem is, why position-only tracking of a manoeuvring
@@ -23,17 +24,48 @@ vehicle is non-trivial. Three or four sentences.
 ## How it works
 ### The simulated world                              [Anne]
     motion model, S-curve manoeuvres, noise, dropouts, false echoes
+
+
 ### The filter                                       [Yağmur]
     state vector, the five matrices, predict/update, NaN handling
+
+
 ### The figures                                      [Anne]
     what each panel of the static study shows
 
 ## Project structure                                 [either]
     table: file -> what it does -> who wrote it
 
-## Running it                                        [either]
-    clone, venv, pip install -r requirements.txt,
-    python main.py / python benchmark.py / pytest
+
+## How to run it
+
+```bash
+git clone https://github.com/yagmur-cam/autonomous-vehicle-simulation.git
+cd autonomous-vehicle-simulation
+
+python -m venv .venv
+source .venv/bin/activate #Windows: .\.venv\Scripts\Activate.ps1
+
+pip install -r requirements.txt
+```
+
+| Command | What it does |
+|---|---|
+| `python main.py` | One tracking run with a sensor dropout. Writes both figures into `figures/`. |
+| `python benchmark.py` | All four experiments. Prints the results table and saves the sweep arrays. Takes about 30 seconds. |
+| `pytest` | The 23 tests. |
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## Tests                                             [both]
     23 tests, what they cover, one line on the interesting ones
