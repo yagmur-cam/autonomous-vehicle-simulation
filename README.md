@@ -33,8 +33,26 @@ vehicle is non-trivial. Three or four sentences.
 ### The figures                                      [Anne]
     what each panel of the static study shows
 
-## Project structure                                 [either]
-    table: file -> what it does -> who wrote it
+
+
+
+
+
+## Project structure
+
+| File | Purpose | Author |
+|---|---|---|
+| `simulator.py` | Generates the true trajectory and the noisy radar measurements, including manoeuvres, dropouts and false echoes | Anne |
+| `kalman.py` | The Kalman filter: state transition, measurement and noise matrices, predict/update cycle | Yağmur |
+| `benchmark.py` | The four experiments and the metrics they use (RMSE, moving average, NEES) | Yağmur |
+| `visualize.py` | The three-panel static study and the tracking animation | Anne |
+| `main.py` | Wires the modules together for a single run and writes the figures | both |
+| `test_kalman.py` | Unit tests for the filter | Yağmur |
+| `test_benchmark.py` | Unit tests for the metrics | Yağmur |
+| `test_simulator.py` | Unit tests for the simulator | Anne |
+| `sweep_results.npz` | Saved sweep arrays, so plots can be redrawn without re-running | generated |
+| `figures/` | Output figures and animation | generated |
+
 
 
 ## How to run it
@@ -77,5 +95,10 @@ pip install -r requirements.txt
 ## Future work                                       [both]
     EKF with range/bearing, RTS smoother, Mahalanobis gating
 
-## Authors                                           [either]
-    who did what, two lines
+
+## Authors
+
+- **Yağmur Çam** ([@yagmur-cam](https://github.com/yagmur-cam)): Kalman filter, benchmarking and tuning experiments
+- **Anne Fernando** ([@Mbmiquella](https://github.com/Mbmiquella)): simulator, visualisation and animation
+
+Built as a self-directed project alongside our second year of Applied Computer Science and AI at Sapienza University of Rome.
