@@ -26,7 +26,7 @@ vehicle is non-trivial. Three or four sentences.
     Motion Model and S-Curve Maneuvers
     1. In simulator.py:
     - The module builds a challenging 2D synthetic environment that forces the filter to handle the chaotic realities of physical sensors. This helps to prove the robustness of the Kalman Filter.
-    - Thhe vehicle navigates a 2D Cartesian plane over a specified time horizon (e.g., 250 time steps at $\delta t = 0.1s$). 
+    - Thhe vehicle navigates a 2D Cartesian plane over a specified time horizon (e.g., 250 time steps at Δt = 0.1s). 
     Rather than a simple straight line, the ground truth is dynamically generated as an S-curve maneuver. This continuous, sweeping path forces the vehicle to undergo unmodeled lateral accelerations, rigorously testing the filter's ability to track momentum through corners without overshooting.
     - The physics of the vehicle are driven by the Discrete White Noise Acceleration (DWNA) model, which assumes that the vehicles moves at a nearly constant velocity. (maybe i could speak about the white noise)
     - The State Transition matrix (F) updates the x and y positions based on the current velocities (v_x, v_y).
