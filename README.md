@@ -53,8 +53,10 @@ what each panel of the static study shows
 plot_static_study produces one three-panel figure (figures/kalman_study.png).
 
 Trajectory (left). The black line is the ground truth, the red dots are the radar hits (dropout steps are omitted), and the blue line is the Kalman estimate. Blue 2σ ellipses are drawn every 20 steps, built from the position block of the covariance P by eigendecomposition. Their size shows how uncertain the filter is, and their tilt shows correlation between x and y uncertainty.
+
 Position error vs time (top right). Red dots are the raw radar error and the blue line is the filter error, both as the Euclidean distance to the truth. Orange bands mark the dropout, and the title reports both RMSEs. The filter error sits well below the radar scatter in steady driving and rises during the manoeuvres and the blackout.
 Uncertainty vs time (bottom right). The purple curve is trace(P_pos) = Var(x) + Var(y) in m². It shrinks to a steady value while measurements arrive, grows during the dropout because the filter predicts without corrections, and drops again once the radar returns.
+
 create_animation renders the same run as a GIF (figures/tracking.gif, 15 fps). A camera follows the vehicle, the last 12 radar hits are shown, and a dashed 2σ ellipse swells and shrinks with the filter’s confidence.
 
 
@@ -104,6 +106,7 @@ pip install -r requirements.txt
  23 tests, what they cover, one line on the interesting ones
 
 test_simulator.py has six tests. They check that the same seed gives byte-identical arrays and different seeds give different data. They check the output shapes, (N, 4) for truth and (N, 2) for measurements. A kinematics test uses zero process noise and confirms x = v·t before the first manoeuvre. Dropout windows must be exactly NaN with no stray NaNs elsewhere and none in the truth. Injected outliers must land more than 10 m from the truth.
+
 test_visualize.py has four tests on the ellipse geometry. A diagonal covariance (variances 9 and 4) must give a 12 × 8 ellipse at 0°. A correlated matrix with eigenvalues 8 and 2 must tilt to 45°. A zero covariance must stay finite and positive. A smoke test confirms the PNG and GIF are actually written.
 
 ## Limitations                                       [both — do not skip]
