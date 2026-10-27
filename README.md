@@ -32,7 +32,6 @@ vehicle is non-trivial. Three or four sentences.
 
 ## How it works
 ### The simulated world                              
-    Motion Model and S-Curve Maneuvers
 
 In `simulator.py`: the module builds a challenging 2D synthetic environment that forces the filter to handle the chaotic realities of physical sensors. This helps to prove the robustness of the Kalman Filter. The vehicle navigates a 2D Cartesian plane over a specified time horizon (e.g., 250 time steps at Δt = 0.1s). 
 
