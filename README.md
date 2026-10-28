@@ -30,7 +30,14 @@ mismatch actually costs; how to tune around it, whether the filter stays honest
 about its own uncertainty, and how fast it degrades when the radar goes dark.
 
 
-## Results                                           
+## Results             
+
+<img src="figures/kalman_study.png" alt="Trajectory, error over time, and filter uncertainty" width="800">
+
+*Left: the trajectory with 2σ uncertainty ellipses. Top right: raw versus filtered
+error, with the sensor dropout shaded. Bottom right: the filter's own uncertainty,
+which balloons during the blackout and collapses the moment the radar returns.*
+
 ### 1. Does the filter beat the simple alternatives?
 
 Position RMSE over 30 random seeds, same trajectory and noise parameters
@@ -44,21 +51,15 @@ throughout:
 | Moving average, centred (5-point) | 1.261 ± 0.085 |
 
 The filter is **54% better than the raw radar** and **40% better than the causal
-moving average**. The standard deviations matter here: the gap between the filter
-and the causal baseline is 0.88 m against a spread of about 0.1 m, so it is a real
-effect rather than a lucky seed.
+moving average**; a 0.88 m gap against a seed-to-seed spread of 0.1 m, so a real
+effect rather than a lucky run.
 
-**On the last row.** The centred moving average appears to beat the filter — and
-it does, but it is not a fair comparison. A centred window averages each point
-with its neighbours on *both* sides, so it uses measurements that have not arrived
-yet. It is a smoother, not a filter. The Kalman filter is causal: at step *k* it
-has only seen steps 0 through *k*.
-
-We kept both rows rather than quietly dropping the one that loses. Against the
-honest causal baseline the filter wins clearly; against a method that can see the
-future it comes within 3%. The
-like-for-like comparison would be a Kalman smoother (RTS), which is listed under
-future work.
+**On the last row.** The centred moving average beats the filter, but not fairly:
+a centred window averages each point with its neighbours on *both* sides, so it
+uses measurements that have not arrived yet. It is a smoother, not a filter; the
+Kalman filter at step *k* has only seen steps 0 through *k*. We kept the row
+rather than dropping the comparison that loses; the like-for-like version would
+be a Kalman smoother (RTS), listed under future work.
 
 
 ### 2. How should Q and R be tuned?
@@ -167,10 +168,12 @@ estimate performs a random walk, so its error grows as √t. Position is the
 integral of velocity, so position error grows as **t^1.5**.
 
 Converting the ratios to exponents (a doubling that multiplies error by 2^k):
-    ×1.37 → k = 0.45
-    ×1.53 → k = 0.61
-    ×1.98 → k = 0.99
-    ×3.10 → k = 1.63
+```
+×1.37 → k = 0.45
+×1.53 → k = 0.61
+×1.98 → k = 0.99
+×3.10 → k = 1.63
+```
 
 The exponent climbs toward 1.5 as the gap lengthens and the filter's baseline
 error stops dominating. At 8 seconds we measure 1.63 against a predicted 1.5, 
@@ -183,7 +186,7 @@ during the blackout and collapses the moment a measurement returns.
 
 ## How it works
 ### The simulated world                              
-In `simulator.py`: the module builds a challenging 2D synthetic environment that forces the filter to handle the chaotic realities of physical sensors. This helps to prove the robustness of the Kalman Filter. The vehicle navigates a 2D Cartesian plane over a specified time horizon (e.g., 250 time steps at Δt = 0.1s). 
+In `simulator.py`: the module builds a challenging 2D synthetic environment that forces the filter to handle the chaotic realities of physical sensors. The vehicle navigates a 2D Cartesian plane over a specified time horizon (e.g., 250 time steps at Δt = 0.1s). 
 
 The true state is [x, y, vₓ, v_y], and each step applies the constant-velocity transition matrix F: positions advance by velocity × Δt and velocities carry over unchanged.
 On top of this runs a discrete white noise acceleration (DWNA) model. At every step the vehicle receives an independent, zero-mean Gaussian acceleration kick (σ = 0.15 m/s²). “White” means the kicks are uncorrelated in time, so the vehicle has no memory of past kicks and no predictable pattern. The resulting process covariance Q = σ²·GGᵀ, with G = [Δt²/2, Δt], correctly links position and velocity errors.
@@ -213,11 +216,13 @@ and the matching ones that build up in `P`, are what let a position-only sensor
 teach the filter about velocity.
 
 The loop runs predict, then update, then record:
-    predict x ← Fx P ← FPFᵀ + Q
-    update y ← z − Hx (the innovation)
-    S ← HPHᵀ + R
-    K ← PHᵀS⁻¹ (the Kalman gain)
-    x ← x + Ky P ← (I − KH)P
+```
+predict   x ← Fx                 P ← FPFᵀ + Q
+update    y ← z − Hx             (the innovation)
+          S ← HPHᵀ + R
+          K ← PHᵀS⁻¹             (the Kalman gain)
+          x ← x + Ky             P ← (I − KH)P
+```
 
 `P` grows during predict, time passing makes the filter less sure, and shrinks
 during update, because a measurement arrived. `K` decides how much of the
@@ -233,14 +238,15 @@ entirely, so it coasts on its model while `P` grows.
 
 
 ### The figures                                     
-plot_static_study produces one three-panel figure (figures/kalman_study.png).
+`plot_static_study` builds the three-panel figure shown above.
 
-Trajectory (left). The black line is the ground truth, the red dots are the radar hits (dropout steps are omitted), and the blue line is the Kalman estimate. Blue 2σ ellipses are drawn every 20 steps, built from the position block of the covariance P by eigendecomposition. Their size shows how uncertain the filter is, and their tilt shows correlation between x and y uncertainty.
+Trajectory (left). The black line is the ground truth, the red dots are the radar hits (dropout steps are omitted), and the blue line is the Kalman estimate. The size of the ellipses shows how uncertain the filter is, and their tilt shows correlation between x and y uncertainty.
 
-Position error vs time (top right). Red dots are the raw radar error and the blue line is the filter error, both as the Euclidean distance to the truth. Orange bands mark the dropout, and the title reports both RMSEs. The filter error sits well below the radar scatter in steady driving and rises during the manoeuvres and the blackout.
-Uncertainty vs time (bottom right). The purple curve is trace(P_pos) = Var(x) + Var(y) in m². It shrinks to a steady value while measurements arrive, grows during the dropout because the filter predicts without corrections, and drops again once the radar returns.
+Position error vs time (top right). Red dots are the raw radar error and the blue line is the filter error, both as the Euclidean distance to the truth. The filter error sits well below the radar scatter in steady driving and rises during the manoeuvres and the blackout.
 
-create_animation renders the same run as a GIF (figures/tracking.gif, 15 fps). A camera follows the vehicle, the last 12 radar hits are shown, and a dashed 2σ ellipse swells and shrinks with the filter’s confidence.
+Uncertainty vs time (bottom right). The purple curve is trace(P_pos) = Var(x) + Var(y) in m². It shrinks to a steady value while measurements arrive, grows during the dropout, and drops again once the radar returns.
+
+`create_animation` renders the same run as a GIF. A camera follows the vehicle, the last 12 radar hits are shown, and a dashed 2σ ellipse swells and shrinks with the filter’s confidence.
 
 
 ## Project structure
@@ -284,21 +290,15 @@ pip install -r requirements.txt
 (4,4), and `H` gives the same measurement for two states with identical position
 but wildly different velocity, the radar must be blind to velocity. The
 strongest test feeds noise-free measurements and requires the filter to recover
-the truth, including the velocity it was never given, to within 1e-6. Another
-runs the same data with a tiny `R` and a huge `R` and asserts the first tracks
-the measurements closely while the second ignores them, which pins down the
-meaning of the Kalman gain without inspecting it directly.
+the truth, including the velocity it was never given, to within 1e-6. 
 
 `test_benchmark.py` has seven tests on the metrics. The important one feeds a
 step function to `moving_average` and asserts the causal version has not yet
-reacted at the index before the jump while the centred version has, that is
-the non-causality distinction from Result 1, enforced in code. Two NEES tests
-check the formula: perfect estimates give zero, and
-scaling `P` by 4 divides NEES by exactly 4.
+reacted at the index before the jump while the centred version has. 
 
-`test_simulator.py` has six tests. They check that the same seed gives byte-identical arrays and different seeds give different data. They check the output shapes, (N, 4) for truth and (N, 2) for measurements. A kinematics test uses zero process noise and confirms x = v·t before the first manoeuvre. Dropout windows must be exactly NaN with no stray NaNs elsewhere and none in the truth. Injected outliers must land more than 10 m from the truth.
+`test_simulator.py` has six tests. They check that the same seed gives byte-identical arrays and different seeds give different data. They check the output shapes, (N, 4) for truth and (N, 2) for measurements. A kinematics test uses zero process noise and confirms x = v·t before the first manoeuvre. 
 
-`test_visualize.py` has four tests on the ellipse geometry. A diagonal covariance (variances 9 and 4) must give a 12 × 8 ellipse at 0°. A correlated matrix with eigenvalues 8 and 2 must tilt to 45°. A zero covariance must stay finite and positive. A smoke test confirms the PNG and GIF are actually written.
+`test_visualize.py` has four tests on the ellipse geometry. A diagonal covariance (variances 9 and 4) must give a 12 × 8 ellipse at 0°. A correlated matrix with eigenvalues 8 and 2 must tilt to 45°. A zero covariance must stay finite and positive.
 
 
 ## Limitations                                      
