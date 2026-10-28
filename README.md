@@ -1,5 +1,4 @@
 # Tracking a Vehicle with a Kalman Filter
-
 Estimating the position and velocity of a manoeuvring vehicle from noisy, 
 position-only radar, and measuring how well it actually works.
 
@@ -15,7 +14,6 @@ moving-average baseline.**
 
 
 ## Overview
-
 A radar reports where a vehicle is, badly, and nothing else. It never reports how
 fast the vehicle is moving; yet velocity is what we need to
 predict where the vehicle will be next.
@@ -184,9 +182,7 @@ during the blackout and collapses the moment a measurement returns.
 
 
 ## How it works
-
 ### The simulated world                              
-
 In `simulator.py`: the module builds a challenging 2D synthetic environment that forces the filter to handle the chaotic realities of physical sensors. This helps to prove the robustness of the Kalman Filter. The vehicle navigates a 2D Cartesian plane over a specified time horizon (e.g., 250 time steps at Δt = 0.1s). 
 
 The true state is [x, y, vₓ, v_y], and each step applies the constant-velocity transition matrix F: positions advance by velocity × Δt and velocities carry over unchanged.
@@ -197,14 +193,46 @@ The motion is deliberately not constant-velocity. Two scripted sinusoidal steeri
 The radar sees position only. A measurement matrix H selects [x, y] from the truth, and Gaussian noise (σ = 2.0 m) is added. The simulator then injects two sensor faults. Dropouts replace a window of measurements with NaN, so the sensor loses the target while the truth always exists. False echoes add a random-sign offset of 20–35 m on each axis at chosen steps, mimicking radar glint. All randomness comes from one seeded np.random.default_rng, so every run is reproducible and the 30-seed benchmark is fair.
 
 
-    
-
 ### The filter                                       
-    state vector, the five matrices, predict/update, NaN handling
+In `kalman.py`. The state is `[x, y, vx, vy]`: where the vehicle is and how fast
+it is moving. The radar only ever supplies the first two.
+
+Five matrices define it:
+
+| | Meaning |
+|---|---|
+| `F` | How the state advances in one timestep: position += velocity × Δt, velocity unchanged |
+| `H` | What the sensor sees of the state. Its velocity columns are **zero**; the radar is structurally blind to velocity |
+| `Q` | How wrong the constant-velocity model is. Built from a single scalar `q` via the DWNA model |
+| `R` | How much the radar lies. `σ² · I` |
+| `P` | How unsure the filter currently is, and about what |
+
+`Q` has off-diagonal terms because position error and velocity error come from
+the *same* random acceleration, so they are perfectly correlated. Those terms,
+and the matching ones that build up in `P`, are what let a position-only sensor
+teach the filter about velocity.
+
+The loop runs predict, then update, then record:
+    predict x ← Fx P ← FPFᵀ + Q
+    update y ← z − Hx (the innovation)
+    S ← HPHᵀ + R
+    K ← PHᵀS⁻¹ (the Kalman gain)
+    x ← x + Ky P ← (I − KH)P
+
+`P` grows during predict, time passing makes the filter less sure, and shrinks
+during update, because a measurement arrived. `K` decides how much of the
+innovation to believe: large `R` drives it toward zero and the filter ignores
+the radar; small `R` and it chases every reading.
+
+The filter starts deliberately ignorant: `x` takes its position from the first
+measurement with zero velocity, and `P` starts at 100 on every diagonal. It
+works out the velocity within a few steps.
+
+**Missing measurements** are NaN rows. The filter runs predict and skips update
+entirely, so it coasts on its model while `P` grows.
 
 
 ### The figures                                     
-
 plot_static_study produces one three-panel figure (figures/kalman_study.png).
 
 Trajectory (left). The black line is the ground truth, the red dots are the radar hits (dropout steps are omitted), and the blue line is the Kalman estimate. Blue 2σ ellipses are drawn every 20 steps, built from the position block of the covariance P by eigendecomposition. Their size shows how uncertain the filter is, and their tilt shows correlation between x and y uncertainty.
@@ -215,15 +243,7 @@ Uncertainty vs time (bottom right). The purple curve is trace(P_pos) = Var(x) + 
 create_animation renders the same run as a GIF (figures/tracking.gif, 15 fps). A camera follows the vehicle, the last 12 radar hits are shown, and a dashed 2σ ellipse swells and shrinks with the filter’s confidence.
 
 
-
-
-
-
-
-
-
 ## Project structure
-
 | File | Purpose | Author |
 |---|---|---|
 | `simulator.py` | Generates the true trajectory and the noisy radar measurements, including manoeuvres, dropouts and false echoes | Anne |
@@ -234,13 +254,12 @@ create_animation renders the same run as a GIF (figures/tracking.gif, 15 fps). A
 | `test_kalman.py` | Unit tests for the filter | Yağmur |
 | `test_benchmark.py` | Unit tests for the metrics | Yağmur |
 | `test_simulator.py` | Unit tests for the simulator | Anne |
-| `test_visualize`    | Unit tests for the covariance-ellipse geometry and figure output                                | Anne |
+| `test_visualize.py`    | Unit tests for the covariance-ellipse geometry and figure output                                | Anne |
 | `sweep_results.npz` | Saved sweep arrays, so plots can be redrawn without re-running | generated |
 | `figures/` | Output figures and animation | generated |
 
 
 ## How to run it
-
 ```bash
 git clone https://github.com/yagmur-cam/autonomous-vehicle-simulation.git
 cd autonomous-vehicle-simulation
@@ -283,7 +302,6 @@ scaling `P` by 4 divides NEES by exactly 4.
 
 
 ## Limitations                                      
-
 **The noise is Gaussian by construction**, so it matches the filter's assumptions
 exactly. A real radar has heavier tails, which makes these results optimistic.
 
@@ -304,7 +322,6 @@ pessimistic relative to the radar's.
 
 
 ## Future work                                       
-
 - **Extended Kalman filter with range and bearing.** Real radars measure range
   and angle, not `(x, y)`, a nonlinear measurement that needs a Jacobian.
 - **RTS smoother.** The like-for-like comparison against the centred moving
@@ -318,7 +335,6 @@ pessimistic relative to the radar's.
 
 
 ## Authors
-
 - **Yağmur Çam** ([@yagmur-cam](https://github.com/yagmur-cam)): Kalman filter, benchmarking and tuning experiments
 - **Anne Fernando** ([@Mbmiquella](https://github.com/Mbmiquella)): simulator, visualisation and animation
 
