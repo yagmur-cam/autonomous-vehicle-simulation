@@ -14,12 +14,25 @@ watch the uncertainty swell, then snap back.*
 moving-average baseline.**
 
 
-## Overview                                          [both — write last]
-What the problem is, why position-only tracking of a manoeuvring
-vehicle is non-trivial. Three or four sentences.
+## Overview
+
+A radar reports where a vehicle is, badly, and nothing else. It never reports how
+fast the vehicle is moving; yet velocity is what we need to
+predict where the vehicle will be next.
+
+Simply averaging the noisy readings reduces the jitter but lags behind every
+turn. A Kalman filter does better by carrying a model of how vehicles move, and
+in doing so it recovers velocity it was never told: position and velocity become
+correlated inside the covariance matrix, so learning about one teaches it about
+the other.
+
+The catch is that the model is a lie. Our filter assumes constant velocity;
+the vehicle steers. This project builds the filter, then measures what that
+mismatch actually costs; how to tune around it, whether the filter stays honest
+about its own uncertainty, and how fast it degrades when the radar goes dark.
 
 
-## Results                                           [Yağmur]
+## Results                                           
 ### 1. Does the filter beat the simple alternatives?
 
 Position RMSE over 30 random seeds, same trajectory and noise parameters
@@ -51,10 +64,49 @@ future work.
 
 
 ### 2. How should Q and R be tuned?
-    the sweep, the heatmap, why optimal q is 1400x the noise parameter
 
+We swept the filter's assumed `q` over five orders of magnitude and `r` across
+seven values, 3 seeds per cell, while holding the simulator's actual noise fixed.
+Only the filter's *beliefs* change, the world stays the same.
 
+Filter RMSE at `r_std = 2.0`:
 
+| q | RMSE (m) |
+|---|---|
+| 0.01 | 4.581 |
+| 0.1 | 3.658 |
+| 1 | 2.089 |
+| 10 | 1.365 |
+| **31.6** | **1.319** |
+| 100 | 1.402 |
+| 1000 | 1.727 |
+
+**Best cell: q = 31.62, r_std = 2.0, RMSE 1.319 m.**
+
+Three things fall out.
+
+**`r` wants the truth.** The optimum `r_std` is 2.0, exactly the simulator's
+measurement noise. Tell the filter the truth about its sensor and it performs
+best.
+
+**`q` does not.** The simulator's process noise is σ = 0.15 m/s², so the "true"
+`q` is 0.0225. The optimum is **1,400× larger**.
+
+That is not an error, and it is the most interesting finding here. `q` does not
+represent the random acceleration kicks, it represents **everything the model
+does not know about**, and the scripted S-curve manoeuvres dwarf the random
+component. From the filter's point of view a deliberate steering input and a
+random gust are indistinguishable: both are accelerations a constant-velocity
+model cannot represent.
+
+Tuning `q` from the simulator's noise parameter would give **4.32 m RMSE, 
+3.3× worse than the swept optimum, and worse than using the raw radar readings
+at all (2.83 m)**. A filter can be correctly implemented, handed the true noise
+statistics, and still be actively harmful.
+
+**The basin is asymmetric.** Moving 1.5 decades below the optimum costs 58%;
+moving 1.5 decades above costs 31%. Underestimating `q`, being too confident in
+our model, is roughly twice as expensive as overestimating it. 
 
 
 ### 3. Is the filter honest about its own uncertainty?
@@ -97,10 +149,42 @@ tighten that.*
 
 
 ### 4. How gracefully does it survive a radar blackout?
-    the dropout curve, the t^1.5 match with theory
+
+Peak position error during blackouts of increasing length, averaged over 5 seeds:
+
+| Blackout | Peak error | Ratio to previous |
+|---|---|---|
+| 0.5 s | 0.75 m | — |
+| 1.0 s | 1.03 m | ×1.37 |
+| 2.0 s | 1.58 m | ×1.53 |
+| 4.0 s | 3.13 m | ×1.98 |
+| 8.0 s | 9.71 m | ×3.10 |
+
+Short blackouts cost almost nothing, at 0.5 s the peak error is roughly the
+filter's normal operating error. But the growth **accelerates**: each
+doubling of the gap costs more than the last.
+
+**There is theory behind that curve.** With no measurements, the velocity
+estimate performs a random walk, so its error grows as √t. Position is the
+integral of velocity, so position error grows as **t^1.5**.
+
+Converting the ratios to exponents (a doubling that multiplies error by 2^k):
+    ×1.37 → k = 0.45
+    ×1.53 → k = 0.61
+    ×1.98 → k = 0.99
+    ×3.10 → k = 1.63
+
+The exponent climbs toward 1.5 as the gap lengthens and the filter's baseline
+error stops dominating. At 8 seconds we measure 1.63 against a predicted 1.5, 
+slightly above, which is consistent with the vehicle also manoeuvring during
+the gap, something the theory does not account for.
+
+Crucially, the filter *knows* it is lost: `trace(P)` rises from ~2 m² to ~75 m²
+during the blackout and collapses the moment a measurement returns. 
 
 
 ## How it works
+
 ### The simulated world                              
 
 In `simulator.py`: the module builds a challenging 2D synthetic environment that forces the filter to handle the chaotic realities of physical sensors. This helps to prove the robustness of the Kalman Filter. The vehicle navigates a 2D Cartesian plane over a specified time horizon (e.g., 250 time steps at Δt = 0.1s). 
@@ -115,7 +199,7 @@ The radar sees position only. A measurement matrix H selects [x, y] from the tru
 
     
 
-### The filter                                       [Yağmur]
+### The filter                                       
     state vector, the five matrices, predict/update, NaN handling
 
 
@@ -150,6 +234,7 @@ create_animation renders the same run as a GIF (figures/tracking.gif, 15 fps). A
 | `test_kalman.py` | Unit tests for the filter | Yağmur |
 | `test_benchmark.py` | Unit tests for the metrics | Yağmur |
 | `test_simulator.py` | Unit tests for the simulator | Anne |
+| `test_visualize`    | Unit tests for the covariance-ellipse geometry and figure output                                | Anne |
 | `sweep_results.npz` | Saved sweep arrays, so plots can be redrawn without re-running | generated |
 | `figures/` | Output figures and animation | generated |
 
@@ -173,25 +258,63 @@ pip install -r requirements.txt
 | `pytest` | The 23 tests. |
 
 
-## Tests                                             [both]
- 23 tests, what they cover, one line on the interesting ones
+## Tests                                             
+23 tests, across the four modules, run with `pytest`.
+
+`test_kalman.py` has six tests on the filter. Two check the matrices: `F` is
+(4,4), and `H` gives the same measurement for two states with identical position
+but wildly different velocity, the radar must be blind to velocity. The
+strongest test feeds noise-free measurements and requires the filter to recover
+the truth, including the velocity it was never given, to within 1e-6. Another
+runs the same data with a tiny `R` and a huge `R` and asserts the first tracks
+the measurements closely while the second ignores them, which pins down the
+meaning of the Kalman gain without inspecting it directly.
+
+`test_benchmark.py` has seven tests on the metrics. The important one feeds a
+step function to `moving_average` and asserts the causal version has not yet
+reacted at the index before the jump while the centred version has, that is
+the non-causality distinction from Result 1, enforced in code. Two NEES tests
+check the formula: perfect estimates give zero, and
+scaling `P` by 4 divides NEES by exactly 4.
 
 `test_simulator.py` has six tests. They check that the same seed gives byte-identical arrays and different seeds give different data. They check the output shapes, (N, 4) for truth and (N, 2) for measurements. A kinematics test uses zero process noise and confirms x = v·t before the first manoeuvre. Dropout windows must be exactly NaN with no stray NaNs elsewhere and none in the truth. Injected outliers must land more than 10 m from the truth.
 
 `test_visualize.py` has four tests on the ellipse geometry. A diagonal covariance (variances 9 and 4) must give a 12 × 8 ellipse at 0°. A correlated matrix with eigenvalues 8 and 2 must tilt to 45°. A zero covariance must stay finite and positive. A smoke test confirms the PNG and GIF are actually written.
 
-## Limitations                                       [both — do not skip]
-    constant-velocity lag in turns, injected dropouts,
-    Gaussian-by-construction noise, Cartesian not range-bearing
 
-The simulated noise is Gaussian by construction, so it matches the filter’s assumptions. 
-A real radar has heavier tails, so the results are optimistic. Dropouts are clean NaN windows at fixed times, whereas real sensors degrade gradually. 
-The manoeuvres are scripted at fixed steps in one scenario, and only the y-velocity is perturbed, so speed is not conserved in turns. 
-This is not a real vehicle model. The radar reports Cartesian x/y, while real radars measure range and bearing.
-The panel-2 RMSE figures also compare different sets of steps (see the advice below).
+## Limitations                                      
 
-## Future work                                       [both]
-    EKF with range/bearing, RTS smoother, Mahalanobis gating
+**The noise is Gaussian by construction**, so it matches the filter's assumptions
+exactly. A real radar has heavier tails, which makes these results optimistic.
+
+**The manoeuvres are scripted** at fixed steps, and only the y-velocity is
+perturbed; so the vehicle speeds up through turns rather than changing
+direction at constant speed. This is not a vehicle model.
+
+**Dropouts are clean NaN windows** at fixed times. Real sensors degrade
+gradually rather than switching off.
+
+**The radar reports Cartesian x/y**, while real radars measure range and bearing, 
+a nonlinear measurement that a plain Kalman filter cannot handle.
+
+**The two RMSE figures in the error panel are not over the same steps.** The raw
+error excludes dropout steps (there is no measurement to compare), while the
+filter error includes them. The filter's number is therefore slightly
+pessimistic relative to the radar's.
+
+
+## Future work                                       
+
+- **Extended Kalman filter with range and bearing.** Real radars measure range
+  and angle, not `(x, y)`, a nonlinear measurement that needs a Jacobian.
+- **RTS smoother.** The like-for-like comparison against the centred moving
+  average that beat us in Result 1.
+- **Mahalanobis gating.** `simulator.py` already generates false echoes; nothing
+  uses them yet.
+- **Constant-turn-rate model.** Would represent steering explicitly, and should
+  shrink the 1,400× gap between optimal `q` and the true process noise.
+- **Finer tuning grid.** Our sweep steps by 3.16×, so the RMSE and NEES optima
+  agree only to within one grid step.
 
 
 ## Authors

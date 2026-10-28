@@ -144,6 +144,14 @@ if __name__ == "__main__":
     i, j = np.unravel_index(np.argmin(grid), grid.shape)
     print(f"best: q={qs[i]:.4g}  r_std={rs[j]:.4g}  RMSE={grid[i, j]:.3f}")
 
+    print("\nq sweep at r_std = 2.0:")
+    for q, val in zip(qs, grid[:, 3]): # index 3 is r_std = 2.0
+        print(f"q={q:9.4g}   RMSE={val:7.3f}")
+
+    untuned = monte_carlo(n_seeds=30, q=0.0225)["filter"][0]
+    print(f"untuned (q=0.0225): {untuned:.3f} m   vs tuned 1.301 m   "
+      f"ratio {untuned / 1.301:.2f}x")
+
 
     # --- Experiment 3: is the filter honest about its own uncertainty? ---
     # same q values as above so the two sweeps are directly comparable
